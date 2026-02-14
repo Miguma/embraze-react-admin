@@ -1,4 +1,4 @@
-import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
+import { signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
 import { ref, set, get } from 'firebase/database';
 import { auth, database } from '../config/firebase';
 
@@ -7,6 +7,14 @@ const googleProvider = new GoogleAuthProvider();
 // Request additional scopes for user info
 googleProvider.addScope('profile');
 googleProvider.addScope('email');
+
+// Admin email allowlist (comma-separated in env: VITE_ADMIN_EMAILS)
+export const isAdminEmail = (email) => {
+  const raw = import.meta.env.VITE_ADMIN_EMAILS || '';
+  const list = raw.split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  if (list.length === 0) return false;
+  return list.includes((email || '').toLowerCase());
+};
 
 // Save user data to database
 const saveUserToDatabase = async (user) => {
@@ -72,12 +80,27 @@ export const signInWithGoogle = async () => {
         success: false,
         error: 'Pop-up blocked by browser. Please allow pop-ups for this site.'
       };
+    } else if (error.code === 'auth/network-request-failed' || error.code === 'auth/internal-error') {
+      return {
+        success: false,
+        error: 'Service unavailable. Please try again later.'
+      };
     }
     
     return {
       success: false,
       error: error.message
     };
+  }
+};
+
+export const signInWithEmailPassword = async (email, password) => {
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    await saveUserToDatabase(result.user);
+    return { success: true, user: result.user };
+  } catch (error) {
+    return { success: false, error: error.message };
   }
 };
 

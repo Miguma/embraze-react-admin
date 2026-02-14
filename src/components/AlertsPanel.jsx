@@ -1,17 +1,21 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBell, faChevronRight, faMapMarkerAlt, faClock, faCheck, faHistory, faArrowUp } from '@fortawesome/free-solid-svg-icons';
+import { faBell, faChevronRight, faMapMarkerAlt, faClock, faCheck, faHistory, faArrowUp, faChartBar } from '@fortawesome/free-solid-svg-icons';
 import { ref, onValue } from 'firebase/database';
 import { database } from '../config/firebase';
 import SettingsTab from './tabs/SettingsTab';
 import HistoryTab from './tabs/HistoryTab';
+import StatisticsTab from './tabs/StatisticsTab';
+import StatisticsMoreTab from './tabs/StatisticsMoreTab';
 
-const AlertsPanel = ({ onAlertClick, onLogout, onLogin, isLoggedIn, onExpandChange, onHistoryChange, currentUser }) => {
+const AlertsPanel = ({ onAlertClick, onLogout, onLogin, isLoggedIn, onExpandChange, onHistoryChange, currentUser, onViewMoreStats }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [alerts, setAlerts] = useState({});
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+  const [showStatsDetails, setShowStatsDetails] = useState(false);
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(false);
   const [expandedAddresses, setExpandedAddresses] = useState({});
 
@@ -66,6 +70,7 @@ const AlertsPanel = ({ onAlertClick, onLogout, onLogin, isLoggedIn, onExpandChan
               setIsExpanded(true);
               setShowSettings(false);
               setShowHistory(false);
+              setShowStats(false);
             }}
             className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center relative transition-colors ${
               isExpanded && !showSettings && !showHistory
@@ -85,6 +90,7 @@ const AlertsPanel = ({ onAlertClick, onLogout, onLogin, isLoggedIn, onExpandChan
           onClick={() => {
             setIsExpanded(true);
             setShowSettings(false);
+            setShowStats(false);
             setShowHistory(true);
           }}
           className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${
@@ -94,6 +100,21 @@ const AlertsPanel = ({ onAlertClick, onLogout, onLogin, isLoggedIn, onExpandChan
           }`}
         >
           <FontAwesomeIcon icon={faHistory} size="lg" />
+        </button>
+        <button
+          onClick={() => {
+            setIsExpanded(true);
+            setShowSettings(false);
+            setShowHistory(false);
+            setShowStats(true);
+          }}
+          className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-colors ${
+            isExpanded && showStats
+              ? 'bg-teal-500 text-white'
+              : 'bg-white text-gray-700'
+          }`}
+        >
+          <FontAwesomeIcon icon={faChartBar} size="lg" />
         </button>
         
         {/* Profile Button - Only for logged in users */}
@@ -167,10 +188,16 @@ const AlertsPanel = ({ onAlertClick, onLogout, onLogin, isLoggedIn, onExpandChan
                 {/* Header */}
                 <div className="px-4 pb-3 border-b border-gray-100 flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-gray-900">
-                    {showSettings ? 'Settings' : showHistory ? 'History' : 'Requests'}
+                    {showSettings ? 'Settings' : showHistory ? 'History' : showStats ? 'Statistics' : 'Requests'}
                   </h3>
                   <button
-                    onClick={() => setIsExpanded(false)}
+                    onClick={() => {
+                      if (showStats && showStatsDetails) {
+                        setShowStatsDetails(false);
+                      } else {
+                        setIsExpanded(false);
+                      }
+                    }}
                     className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center"
                   >
                     <FontAwesomeIcon icon={faChevronRight} className="rotate-90" />
@@ -186,6 +213,20 @@ const AlertsPanel = ({ onAlertClick, onLogout, onLogin, isLoggedIn, onExpandChan
                   ) : showHistory ? (
                     <div className="p-4">
                       <HistoryTab />
+                    </div>
+                  ) : showStats ? (
+                    <div className="p-4">
+                      <StatisticsTab 
+                        alerts={alertsArray} 
+                        onViewMore={() => {
+                          if (onViewMoreStats) {
+                            onViewMoreStats();
+                          } else {
+                            window.location.hash = '#/more';
+                          }
+                          setIsExpanded(false);
+                        }} 
+                      />
                     </div>
                   ) : sortedAlerts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-gray-400 p-8">
@@ -260,7 +301,7 @@ const AlertsPanel = ({ onAlertClick, onLogout, onLogin, isLoggedIn, onExpandChan
 
       {/* Desktop: Side Panel */}
       <div className="fixed right-0 top-0 h-full hidden sm:flex z-40">
-        {/* Collapsed Tab - Desktop only */}
+                {/* Collapsed Tab - Desktop only */}
         <motion.div
           className="bg-white/95 backdrop-blur-sm shadow-lg flex flex-col items-center py-6 justify-between"
           style={{ width: '64px' }}
@@ -283,7 +324,7 @@ const AlertsPanel = ({ onAlertClick, onLogout, onLogin, isLoggedIn, onExpandChan
                   }
                 }}
                 className={`relative w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all ${
-                  isExpanded && !showSettings && !showHistory
+                  isExpanded && !showSettings && !showHistory && !showStats
                     ? 'bg-blue-500 text-white' 
                     : 'bg-white text-gray-700 hover:bg-gray-100'
                 }`}
@@ -302,6 +343,7 @@ const AlertsPanel = ({ onAlertClick, onLogout, onLogin, isLoggedIn, onExpandChan
               onClick={() => {
                 setIsExpanded(true);
                 setShowSettings(false);
+                setShowStats(false);
                 setShowHistory(true);
               }}
               className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all ${
@@ -311,6 +353,22 @@ const AlertsPanel = ({ onAlertClick, onLogout, onLogin, isLoggedIn, onExpandChan
               }`}
             >
               <FontAwesomeIcon icon={faHistory} size="lg" />
+            </button>
+            {/* Statistics Button */}
+            <button 
+              onClick={() => {
+                setIsExpanded(true);
+                setShowSettings(false);
+                setShowHistory(false);
+                setShowStats(true);
+              }}
+              className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all ${
+                showStats
+                  ? 'bg-teal-500 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <FontAwesomeIcon icon={faChartBar} size="lg" />
             </button>
 
             {/* Google Sign-in Button */}
@@ -370,9 +428,9 @@ const AlertsPanel = ({ onAlertClick, onLogout, onLogin, isLoggedIn, onExpandChan
               <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">
-                    {showSettings ? 'Settings' : showHistory ? 'History' : 'All Requests'}
+                    {showSettings ? 'Settings' : showHistory ? 'History' : showStats ? 'Statistics' : 'All Requests'}
                   </h3>
-                  {!showSettings && !showHistory && (
+                  {!showSettings && !showHistory && !showStats && (
                     <p className="text-xs text-gray-500 mt-0.5">
                       {alertsArray.filter(a => a.type === 'donation').length} donations · {alertsArray.filter(a => a.type !== 'donation').length} emergencies
                     </p>
@@ -380,9 +438,13 @@ const AlertsPanel = ({ onAlertClick, onLogout, onLogin, isLoggedIn, onExpandChan
                 </div>
                 <button
                   onClick={() => {
-                    setIsExpanded(false);
-                    setShowSettings(false);
-                    setShowHistory(false);
+                    if (showStats && showStatsDetails) {
+                      setShowStatsDetails(false);
+                    } else {
+                      setIsExpanded(false);
+                      setShowSettings(false);
+                      setShowHistory(false);
+                    }
                   }}
                   className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
                 >
@@ -399,6 +461,20 @@ const AlertsPanel = ({ onAlertClick, onLogout, onLogin, isLoggedIn, onExpandChan
                 ) : showHistory ? (
                   <div className="p-6">
                     <HistoryTab />
+                  </div>
+                ) : showStats ? (
+                  <div className="p-6">
+                    <StatisticsTab 
+                      alerts={alertsArray} 
+                      onViewMore={() => {
+                        if (onViewMoreStats) {
+                          onViewMoreStats();
+                        } else {
+                          window.location.hash = '#/more';
+                        }
+                        setIsExpanded(false);
+                      }} 
+                    />
                   </div>
                 ) : sortedAlerts.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-gray-400 p-8">

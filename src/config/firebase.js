@@ -3,13 +3,13 @@ import { getDatabase } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBE07mc-Elrzur5NQy-1nvvKsOjaO5pOhM",
-  authDomain: "embraze-react.firebaseapp.com",
-  databaseURL: "https://embraze-react-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "embraze-react",
-  storageBucket: "embraze-react.firebasestorage.app",
-  messagingSenderId: "181038669879",
-  appId: "1:181038669879:web:2da446c744ce86964cdfb2"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 const app = initializeApp(firebaseConfig);

@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import Map from './components/Map';
-import EmergencyButton from './components/EmergencyButton';
 import AlertsPanel from './components/AlertsPanel';
 import AlertModal from './components/AlertModal';
 import NavigationPanel from './components/NavigationPanel';
 import LoadingScreen from './components/LoadingScreen';
 import AuthBanner from './components/AuthBanner';
+import LoginScreen from './components/LoginScreen';
 import WelcomeModal from './components/WelcomeModal';
+import MorePage from './components/MorePage';
 import { getRoute } from './utils/routing';
-import { signInWithGoogle, signOutUser, onAuthChange } from './utils/auth';
+import { signInWithEmailPassword, signInWithGoogle, signOutUser, onAuthChange, isAdminEmail } from './utils/auth';
 
 function App() {
+  const ADMIN_BYPASS = !(import.meta.env.VITE_ADMIN_BYPASS === 'false' || import.meta.env.VITE_ADMIN_BYPASS === '0');
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -26,6 +28,18 @@ function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [showMorePage, setShowMorePage] = useState(false);
+
+  // Simple hash-based routing for the stats page
+  useEffect(() => {
+    const syncFromHash = () => {
+      const h = window.location.hash || '';
+      setShowMorePage(h.includes('more'));
+    };
+    syncFromHash();
+    window.addEventListener('hashchange', syncFromHash);
+    return () => window.removeEventListener('hashchange', syncFromHash);
+  }, []);
 
   // Track window resize for mobile detection
   useEffect(() => {
@@ -44,43 +58,91 @@ function App() {
       await new Promise(resolve => setTimeout(resolve, 2000));
       setIsLoading(false);
     };
-
-    // Listen to Firebase auth state changes
-    const unsubscribe = onAuthChange((user) => {
-      if (user) {
-        setIsLoggedIn(true);
-        setCurrentUser(user);
-        setShowAuthBanner(false);
-        
-        // Check if this is first time login
-        const onboardingComplete = localStorage.getItem('embraze_onboarding_complete');
-        if (!onboardingComplete) {
-          setShowWelcomeModal(true);
+    let unsubscribe = () => {};
+    if (!ADMIN_BYPASS) {
+      unsubscribe = onAuthChange((user) => {
+        if (user) {
+          if (isAdminEmail(user.email)) {
+            setIsLoggedIn(true);
+            setCurrentUser(user);
+            setShowAuthBanner(false);
+            const onboardingComplete = localStorage.getItem('embraze_onboarding_complete');
+            if (!onboardingComplete) {
+              setShowWelcomeModal(true);
+            }
+          } else {
+            alert('Admin access only');
+            signOutUser();
+            setIsLoggedIn(false);
+            setCurrentUser(null);
+            setShowAuthBanner(true);
+          }
+        } else {
+          setIsLoggedIn(false);
+          setCurrentUser(null);
+          setShowAuthBanner(true);
         }
-      } else {
-        setIsLoggedIn(false);
-        setCurrentUser(null);
-        setShowAuthBanner(true);
-      }
-    });
+      });
+    } else {
+      const stored = localStorage.getItem('embraze_admin_bypass_user');
+      const mockUser = stored ? JSON.parse(stored) : {
+        uid: 'dev-admin',
+        email: 'dev@admin.local',
+        displayName: 'Dev Admin',
+        photoURL: null
+      };
+      localStorage.setItem('embraze_admin_bypass_user', JSON.stringify(mockUser));
+      setIsLoggedIn(true);
+      setCurrentUser(mockUser);
+      setShowAuthBanner(false);
+    }
 
     initializeApp();
 
     return () => unsubscribe();
   }, []);
 
-  const handleLogin = async () => {
-    const result = await signInWithGoogle();
-    
-    if (result.success) {
-      // Auth state change listener will handle the rest
-      console.log('Signed in successfully:', result.user);
-    } else if (result.cancelled) {
-      // User cancelled - don't show error, just log it
-      console.log('Sign-in cancelled by user');
+  const handleLogin = async (email, password) => {
+    if (ADMIN_BYPASS) {
+      const mockUser = {
+        uid: 'dev-admin',
+        email: email || 'dev@admin.local',
+        displayName: 'Dev Admin',
+        photoURL: null
+      };
+      localStorage.setItem('embraze_admin_bypass_user', JSON.stringify(mockUser));
+      setIsLoggedIn(true);
+      setCurrentUser(mockUser);
+      setShowAuthBanner(false);
+      return { success: true, user: mockUser };
     } else {
-      // Show error for other failures
-      alert('Failed to sign in: ' + result.error);
+      if (!isAdminEmail(email)) {
+        return { success: false, error: 'Not an admin email' };
+      }
+      const result = await signInWithEmailPassword(email, password);
+      if (result.success) {
+        console.log('Signed in successfully:', result.user);
+      }
+      return result;
+    }
+  };
+
+  const handleLoginGoogle = async () => {
+    if (ADMIN_BYPASS) {
+      const mockUser = {
+        uid: 'dev-admin',
+        email: 'dev@admin.local',
+        displayName: 'Dev Admin',
+        photoURL: null
+      };
+      localStorage.setItem('embraze_admin_bypass_user', JSON.stringify(mockUser));
+      setIsLoggedIn(true);
+      setCurrentUser(mockUser);
+      setShowAuthBanner(false);
+      return { success: true, user: mockUser };
+    } else {
+      const result = await signInWithGoogle();
+      return result;
     }
   };
 
@@ -212,8 +274,7 @@ function App() {
             />
           </div>
 
-          {/* Emergency Button - Only for authenticated users */}
-          {isLoggedIn && <EmergencyButton currentUser={currentUser} />}
+          {/* Emergency Button removed for admin panel */}
           
           {/* Alerts Panel - Right side (limited for non-authenticated) */}
           <AlertsPanel 
@@ -227,6 +288,13 @@ function App() {
               document.documentElement.style.setProperty('--panel-expanded', expanded ? '1' : '0');
             }}
             onHistoryChange={setIsHistoryOpen}
+            onViewMoreStats={() => {
+              window.location.hash = '#/more';
+              if (!window.location.hash.includes('more')) {
+                window.location.hash = '#more';
+              }
+              setShowMorePage(true);
+            }}
           />
           
           {/* Navigation Panel - Only for authenticated users */}
@@ -265,6 +333,24 @@ function App() {
           {showWelcomeModal && (
             <WelcomeModal onComplete={handleWelcomeComplete} />
           )}
+
+          {/* Full-screen Overall Statistics */}
+          {showMorePage && (
+            <MorePage 
+              userLocation={userLocation}
+              onClose={() => {
+              window.location.hash = '';
+              setShowMorePage(false);
+            }} 
+            />
+          )}
+
+          {/* Admin Login Modal - blocks interaction until admin signs in */}
+          <AnimatePresence>
+            {!isLoggedIn && (
+              <LoginScreen onLogin={handleLogin} onLoginGoogle={handleLoginGoogle} />
+            )}
+          </AnimatePresence>
         </div>
       )}
     </>
