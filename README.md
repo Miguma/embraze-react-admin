@@ -1,4 +1,4 @@
-# EmBraze - Community Crisis Support Platform
+# Embraze - Community Crisis Support Platform
 
 A modern, real-time crisis support platform for Cebu City that connects people in need with volunteers and donors through an interactive 3D map interface.
 
